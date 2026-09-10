@@ -198,6 +198,29 @@ HOME_HTML = """
                 <div class="tool-title">Search</div>
                 <div class="tool-description">Search the web for information.</div>
             </a>
+            <a class="tool" href="https://open.spotify.com/" target="_blank">
+                <div class="tool-icon">🎵</div>
+                <div class="tool-title">Spotify</div>
+                <div class="tool-description">Listen to music while you study.</div>
+            </a>
+
+            <a class="tool" href="https://www.google.com/search?q=calculator" target="_blank">
+                <div class="tool-icon">🧮</div>
+                <div class="tool-title">Calculator</div>
+                <div class="tool-description">Solve calculations and math problems.</div>
+            </a>
+
+            <a class="tool" href="https://canvas.instructure.com/" target="_blank">
+                <div class="tool-icon">📚</div>
+                <div class="tool-title">Canvas</div>
+                <div class="tool-description">Access your courses and assignments.</div>
+            </a>
+
+            <a class="tool" href="https://www.canva.com/" target="_blank">
+                <div class="tool-icon">🎨</div>
+                <div class="tool-title">Canva</div>
+                <div class="tool-description">Create presentations and designs.</div>
+            </a>
         </div>
     </div>
 
