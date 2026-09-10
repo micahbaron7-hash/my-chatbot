@@ -11,17 +11,33 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 CODE_CHANGE_HOURS = 3
-MAX_LEN = 1000
+ADMIN_CODE = "673246"
+
+custom_code = None
+custom_code_period = None
 
 def get_code_period():
     return int(time.time() // (CODE_CHANGE_HOURS * 3600))
 
-def get_current_code():
+def get_generated_code():
     period = get_code_period()
-    data = str(period).encode()
-    digest = hashlib.sha256(data).hexdigest()
+    digest = hashlib.sha256(str(period).encode()).hexdigest()
     number = int(digest[:12], 16) % 900000 + 100000
     return str(number)
+
+def get_current_code():
+    global custom_code, custom_code_period
+
+    current_period = get_code_period()
+
+    if custom_code_period != current_period:
+        custom_code = None
+        custom_code_period = current_period
+
+    if custom_code:
+        return custom_code
+
+    return get_generated_code()
 
 def check_session():
     return (
@@ -221,7 +237,7 @@ AI_HTML = """
             margin: 30px auto;
             padding: 20px;
         }
-        .login, .chat-box {
+        .login, .chat-box, .admin-box {
             background: white;
             border-radius: 18px;
             padding: 25px;
@@ -275,6 +291,9 @@ AI_HTML = """
         .error {
             color: #dc2626;
         }
+        .success {
+            color: #16a34a;
+        }
     </style>
 </head>
 
@@ -284,7 +303,9 @@ AI_HTML = """
     </div>
 
     <div class="container">
-        {% if not logged_in %}
+
+        {% if page == "login" %}
+
             <div class="login">
                 <h1>Study Help</h1>
                 <p>Enter the current access code to continue.</p>
@@ -298,7 +319,42 @@ AI_HTML = """
                     <p class="error">{{ error }}</p>
                 {% endif %}
             </div>
-        {% else %}
+
+        {% elif page == "admin" %}
+
+            <div class="admin-box">
+                <h1>Change Access Code</h1>
+
+                <p>Set the access code for the current time period.</p>
+
+                <form method="POST" action="/change-code">
+                    <input
+                        type="text"
+                        name="new_code"
+                        placeholder="New code"
+                        maxlength="20"
+                        required
+                    >
+                    <button type="submit">Change Code</button>
+                </form>
+
+                {% if error %}
+                    <p class="error">{{ error }}</p>
+                {% endif %}
+
+                {% if success %}
+                    <p class="success">{{ success }}</p>
+                {% endif %}
+
+                <br>
+
+                <form method="POST" action="/logout">
+                    <button type="submit">Log Out</button>
+                </form>
+            </div>
+
+        {% elif page == "chat" %}
+
             <div class="chat-box">
                 <h1>Study Help</h1>
 
@@ -319,7 +375,11 @@ AI_HTML = """
                 </div>
 
                 <form method="POST" action="/chat">
-                    <textarea name="message" placeholder="What are you working on?" required></textarea>
+                    <textarea
+                        name="message"
+                        placeholder="What are you working on?"
+                        required
+                    ></textarea>
                     <button type="submit">Send</button>
                 </form>
 
@@ -327,7 +387,9 @@ AI_HTML = """
                     <button type="submit">Log Out</button>
                 </form>
             </div>
+
         {% endif %}
+
     </div>
 </body>
 </html>
@@ -340,9 +402,17 @@ def home():
 @app.route("/ai")
 def ai():
     if check_session():
+        if session.get("admin"):
+            return render_template_string(
+                AI_HTML,
+                page="admin",
+                error=None,
+                success=None
+            )
+
         return render_template_string(
             AI_HTML,
-            logged_in=True,
+            page="chat",
             messages=session.get("messages", []),
             error=None
         )
@@ -351,8 +421,7 @@ def ai():
 
     return render_template_string(
         AI_HTML,
-        logged_in=False,
-        messages=[],
+        page="login",
         error=None
     )
 
@@ -360,8 +429,16 @@ def ai():
 def login():
     code = request.form.get("code", "").strip()
 
+    if hmac.compare_digest(code, ADMIN_CODE):
+        session["logged_in"] = True
+        session["admin"] = True
+        session["code_period"] = get_code_period()
+
+        return redirect(url_for("ai"))
+
     if hmac.compare_digest(code, get_current_code()):
         session["logged_in"] = True
+        session["admin"] = False
         session["code_period"] = get_code_period()
         session["messages"] = [
             {
@@ -369,18 +446,53 @@ def login():
                 "content": "You are a helpful study assistant. Help the user understand school subjects, explain concepts clearly, and help with studying."
             }
         ]
+
         return redirect(url_for("ai"))
 
     return render_template_string(
         AI_HTML,
-        logged_in=False,
-        messages=[],
+        page="login",
         error="Incorrect or expired code."
+    )
+
+@app.route("/change-code", methods=["POST"])
+def change_code():
+    global custom_code, custom_code_period
+
+    if not session.get("admin"):
+        return redirect(url_for("ai"))
+
+    new_code = request.form.get("new_code", "").strip()
+
+    if not new_code:
+        return render_template_string(
+            AI_HTML,
+            page="admin",
+            error="Enter a code.",
+            success=None
+        )
+
+    if new_code == ADMIN_CODE:
+        return render_template_string(
+            AI_HTML,
+            page="admin",
+            error="You cannot use the admin code as the access code.",
+            success=None
+        )
+
+    custom_code = new_code
+    custom_code_period = get_code_period()
+
+    return render_template_string(
+        AI_HTML,
+        page="admin",
+        error=None,
+        success="Access code changed successfully."
     )
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    if not check_session():
+    if not check_session() or session.get("admin"):
         session.clear()
         return redirect(url_for("ai"))
 
