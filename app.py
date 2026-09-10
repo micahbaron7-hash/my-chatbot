@@ -199,10 +199,6 @@ HOME_HTML = """
                 <div class="tool-description">Search the web for information.</div>
             </a>
         </div>
-
-        <div class="ai-section">
-            <a class="ai-button" href="/ai">Study Help</a>
-        </div>
     </div>
 
     <div class="footer">StudySpace</div>
