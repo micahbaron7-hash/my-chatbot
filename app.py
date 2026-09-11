@@ -16,7 +16,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 ADMIN_CODE = "673246"
-ACCOUNT_MAX = 25000
+ACCOUNT_MAX = 0
 
 DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
 DRIVE_LOCK = threading.Lock()
