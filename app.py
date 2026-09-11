@@ -4,7 +4,6 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 import os
-import time
 import random
 import hmac
 import json
@@ -16,31 +15,15 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-CODE_CHANGE_HOURS = 3
 ADMIN_CODE = "673246"
 ACCOUNT_MAX = 25000
 
-STARTUP_TIME = time.time()
 DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
 DRIVE_LOCK = threading.Lock()
 
 
-def get_code_period():
-    elapsed = time.time() - STARTUP_TIME
-    return int(elapsed // (CODE_CHANGE_HOURS * 3600))
-
-
-def get_current_code():
-    period = get_code_period()
-    random.seed(int(STARTUP_TIME) + period)
-    return str(random.randint(100000, 999999))
-
-
 def check_session():
-    return (
-        session.get("logged_in")
-        and session.get("code_period") == get_code_period()
-    )
+    return session.get("logged_in")
 
 
 def get_drive_service():
@@ -529,20 +512,10 @@ AI_HTML = """
                 <h1>Study Help</h1>
 
                 <p>
-                    Enter the current access code and your permanent account code.
+                    Enter your permanent account code.
                 </p>
 
                 <form method="POST" action="/login">
-
-                    <input
-                        type="text"
-                        name="access_code"
-                        placeholder="Current access code"
-                        autocomplete="off"
-                        required
-                    >
-
-                    <br>
 
                     <input
                         type="text"
@@ -575,16 +548,7 @@ AI_HTML = """
                 <h1>Admin Panel</h1>
 
                 <p class="admin-info">
-                    Current 3-hour access code:
-                </p>
-
-                <div class="code">
-                    {{ current_code }}
-                </div>
-
-                <p class="admin-info">
-                    This code automatically changes every
-                    {{ change_hours }} hours.
+                    Permanent account codes are saved and do not expire.
                 </p>
 
                 <div class="admin-section">
@@ -857,7 +821,7 @@ def home():
 @app.route("/study")
 def study():
 
-    if session.get("admin") and session.get("code_period") == get_code_period():
+    if session.get("admin"):
 
         accounts_data = load_accounts()
 
@@ -881,8 +845,6 @@ def study():
         return render_template_string(
             AI_HTML,
             page="admin",
-            current_code=get_current_code(),
-            change_hours=CODE_CHANGE_HOURS,
             accounts=account_list,
             created_name=None,
             created_code=None,
@@ -928,26 +890,14 @@ def study():
 @app.route("/login", methods=["POST"])
 def login():
 
-    access_code = request.form.get("access_code", "").strip()
     account_code = request.form.get("account_code", "").strip()
 
-    if hmac.compare_digest(access_code, ADMIN_CODE):
+    if hmac.compare_digest(account_code, ADMIN_CODE):
 
         session["logged_in"] = True
         session["admin"] = True
-        session["code_period"] = get_code_period()
 
         return redirect(url_for("study"))
-
-    current_code = get_current_code()
-
-    if not hmac.compare_digest(access_code, current_code):
-
-        return render_template_string(
-            AI_HTML,
-            page="login",
-            error="Incorrect or expired access code."
-        )
 
     accounts_data = load_accounts()
 
@@ -968,12 +918,11 @@ def login():
         return render_template_string(
             AI_HTML,
             page="login",
-            error="Incorrect permanent account code."
+            error="Incorrect account code."
         )
 
     session["logged_in"] = True
     session["admin"] = False
-    session["code_period"] = get_code_period()
     session["account_name"] = found_account
 
     session["messages"] = [
@@ -989,7 +938,7 @@ def login():
 @app.route("/admin/create", methods=["POST"])
 def create_account():
 
-    if not session.get("admin") or session.get("code_period") != get_code_period():
+    if not session.get("admin"):
 
         session.clear()
 
@@ -1007,32 +956,27 @@ def create_account():
 
         if name in accounts_data["accounts"]:
 
-            accounts_data["accounts"][name]["characters_max"] = accounts_data["accounts"][name].get(
-                "characters_max",
-                ACCOUNT_MAX
-            )
+            account_list = []
 
-            save_accounts(accounts_data)
+            for account_name, account in accounts_data["accounts"].items():
+
+                used = account.get("characters_used", 0)
+                maximum = account.get("characters_max", ACCOUNT_MAX)
+
+                account_list.append(
+                    {
+                        "name": account_name,
+                        "code": account["account_code"],
+                        "used": used,
+                        "maximum": maximum,
+                        "remaining": max(0, maximum - used)
+                    }
+                )
 
             return render_template_string(
                 AI_HTML,
                 page="admin",
-                current_code=get_current_code(),
-                change_hours=CODE_CHANGE_HOURS,
-                accounts=[
-                    {
-                        "name": account_name,
-                        "code": account["account_code"],
-                        "used": account.get("characters_used", 0),
-                        "maximum": account.get("characters_max", ACCOUNT_MAX),
-                        "remaining": max(
-                            0,
-                            account.get("characters_max", ACCOUNT_MAX)
-                            - account.get("characters_used", 0)
-                        )
-                    }
-                    for account_name, account in accounts_data["accounts"].items()
-                ],
+                accounts=account_list,
                 created_name=None,
                 created_code=None,
                 refill_code=None
@@ -1073,8 +1017,6 @@ def create_account():
     return render_template_string(
         AI_HTML,
         page="admin",
-        current_code=get_current_code(),
-        change_hours=CODE_CHANGE_HOURS,
         accounts=account_list,
         created_name=name,
         created_code=account_code,
@@ -1085,7 +1027,7 @@ def create_account():
 @app.route("/admin/refill", methods=["POST"])
 def create_refill():
 
-    if not session.get("admin") or session.get("code_period") != get_code_period():
+    if not session.get("admin"):
 
         session.clear()
 
@@ -1157,8 +1099,6 @@ def create_refill():
     return render_template_string(
         AI_HTML,
         page="admin",
-        current_code=get_current_code(),
-        change_hours=CODE_CHANGE_HOURS,
         accounts=account_list,
         created_name=None,
         created_code=None,
