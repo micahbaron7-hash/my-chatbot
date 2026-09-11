@@ -1,10 +1,15 @@
-
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 import os
 import time
 import random
 import hmac
+import json
+import io
+import threading
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
@@ -13,9 +18,11 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 CODE_CHANGE_HOURS = 3
 ADMIN_CODE = "673246"
+ACCOUNT_MAX = 25000
 
 STARTUP_TIME = time.time()
-CURRENT_CODE = str(random.randint(100000, 999999))
+DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
+DRIVE_LOCK = threading.Lock()
 
 
 def get_code_period():
@@ -25,9 +32,7 @@ def get_code_period():
 
 def get_current_code():
     period = get_code_period()
-
     random.seed(int(STARTUP_TIME) + period)
-
     return str(random.randint(100000, 999999))
 
 
@@ -36,6 +41,81 @@ def check_session():
         session.get("logged_in")
         and session.get("code_period") == get_code_period()
     )
+
+
+def get_drive_service():
+    credentials_info = json.loads(
+        os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    )
+
+    credentials = service_account.Credentials.from_service_account_info(
+        credentials_info,
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+
+    return build("drive", "v3", credentials=credentials)
+
+
+def load_accounts():
+    service = get_drive_service()
+
+    request_media = service.files().get_media(
+        fileId=DRIVE_FILE_ID
+    )
+
+    file_data = io.BytesIO()
+
+    downloader = MediaIoBaseDownload(
+        file_data,
+        request_media
+    )
+
+    done = False
+
+    while not done:
+        _, done = downloader.next_chunk()
+
+    file_data.seek(0)
+
+    accounts = json.loads(
+        file_data.read().decode("utf-8")
+    )
+
+    if "accounts" not in accounts:
+        accounts["accounts"] = {}
+
+    if "refill_codes" not in accounts:
+        accounts["refill_codes"] = {}
+
+    return accounts
+
+
+def save_accounts(accounts):
+    service = get_drive_service()
+
+    data = json.dumps(
+        accounts,
+        indent=4
+    ).encode("utf-8")
+
+    media = MediaIoBaseUpload(
+        io.BytesIO(data),
+        mimetype="application/json",
+        resumable=False
+    )
+
+    service.files().update(
+        fileId=DRIVE_FILE_ID,
+        media_body=media
+    ).execute()
+
+
+def generate_unique_code(existing_codes):
+    while True:
+        code = str(random.randint(100000, 999999))
+
+        if code not in existing_codes:
+            return code
 
 
 HOME_HTML = """
@@ -158,7 +238,7 @@ HOME_HTML = """
 <body>
 
     <div class="header">
-        <h1>S<a href="/ai">t</a>udySpace</h1>
+        <h1>S<a href="/study">t</a>udySpace</h1>
         <p>Your place to study and stay organized</p>
     </div>
 
@@ -249,7 +329,7 @@ HOME_HTML = """
                     Graph equations and explore math.
                 </div>
             </a>
-            
+
             <a class="tool" href="https://www.kahoot.com" target="_blank">
                 <div class="tool-icon">🎮</div>
                 <div class="tool-title">Kahoot</div>
@@ -257,6 +337,7 @@ HOME_HTML = """
                     Join quizzes and test your knowledge.
                 </div>
             </a>
+
             <a class="tool" href="https://mail.google.com/" target="_blank">
                 <div class="tool-icon">📨</div>
                 <div class="tool-title">Gmail</div>
@@ -264,6 +345,7 @@ HOME_HTML = """
                     Send and manage your emails.
                 </div>
             </a>
+
             <a class="tool" href="https://vclock.com/timer/" target="_blank">
                 <div class="tool-icon">⏱️</div>
                 <div class="tool-title">Timer</div>
@@ -271,6 +353,7 @@ HOME_HTML = """
                     Set a timer for studying, homework, or breaks.
                 </div>
             </a>
+
         </div>
     </div>
 
@@ -311,7 +394,7 @@ AI_HTML = """
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 30px auto;
             padding: 20px;
         }
@@ -377,10 +460,15 @@ AI_HTML = """
             width: 220px;
             border: 1px solid #d1d5db;
             border-radius: 9px;
+            margin-bottom: 8px;
         }
 
         .error {
             color: #dc2626;
+        }
+
+        .success {
+            color: #16a34a;
         }
 
         .code {
@@ -393,6 +481,35 @@ AI_HTML = """
 
         .admin-info {
             color: #6b7280;
+        }
+
+        .account {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 12px 0;
+        }
+
+        .account-code {
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+
+        .admin-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .warning {
+            color: #dc2626;
+        }
+
+        .remaining {
+            color: #2563eb;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -412,18 +529,30 @@ AI_HTML = """
                 <h1>Study Help</h1>
 
                 <p>
-                    Enter the current access code to continue.
+                    Enter the current access code and your permanent account code.
                 </p>
 
                 <form method="POST" action="/login">
 
                     <input
                         type="text"
-                        name="code"
-                        placeholder="Enter code"
+                        name="access_code"
+                        placeholder="Current access code"
                         autocomplete="off"
                         required
                     >
+
+                    <br>
+
+                    <input
+                        type="text"
+                        name="account_code"
+                        placeholder="Permanent account code"
+                        autocomplete="off"
+                        required
+                    >
+
+                    <br>
 
                     <button type="submit">
                         Enter
@@ -443,10 +572,10 @@ AI_HTML = """
 
             <div class="admin-box">
 
-                <h1>Admin</h1>
+                <h1>Admin Panel</h1>
 
                 <p class="admin-info">
-                    Current access code:
+                    Current 3-hour access code:
                 </p>
 
                 <div class="code">
@@ -457,6 +586,146 @@ AI_HTML = """
                     This code automatically changes every
                     {{ change_hours }} hours.
                 </p>
+
+                <div class="admin-section">
+
+                    <h2>Create Account</h2>
+
+                    <form method="POST" action="/admin/create">
+
+                        <input
+                            type="text"
+                            name="name"
+                            placeholder="Person's name"
+                            required
+                        >
+
+                        <br>
+
+                        <button type="submit">
+                            Create Account
+                        </button>
+
+                    </form>
+
+                    {% if created_name %}
+
+                        <p class="success">
+                            Account created for {{ created_name }}.
+                        </p>
+
+                        <p>
+                            Permanent account code:
+                        </p>
+
+                        <div class="code">
+                            {{ created_code }}
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+                <div class="admin-section">
+
+                    <h2>Accounts</h2>
+
+                    {% if accounts %}
+
+                        {% for account in accounts %}
+
+                            <div class="account">
+
+                                <strong>{{ account.name }}</strong>
+
+                                <p>
+                                    Permanent code:
+                                    <span class="account-code">
+                                        {{ account.code }}
+                                    </span>
+                                </p>
+
+                                <p>
+                                    Characters used:
+                                    {{ account.used }}
+                                    /
+                                    {{ account.maximum }}
+                                </p>
+
+                                <p class="remaining">
+                                    Remaining:
+                                    {{ account.remaining }}
+                                </p>
+
+                                <form method="POST" action="/admin/refill">
+
+                                    <input
+                                        type="hidden"
+                                        name="account_code"
+                                        value="{{ account.code }}"
+                                    >
+
+                                    <input
+                                        type="number"
+                                        name="amount"
+                                        placeholder="Characters to add"
+                                        min="1"
+                                        required
+                                    >
+
+                                    <br>
+
+                                    <button type="submit">
+                                        Generate Refill Code
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        {% endfor %}
+
+                    {% else %}
+
+                        <p>
+                            No accounts have been created yet.
+                        </p>
+
+                    {% endif %}
+
+                </div>
+
+                {% if refill_code %}
+
+                    <div class="admin-section">
+
+                        <h2>New Refill Code</h2>
+
+                        <p>
+                            Give this code to the account owner.
+                        </p>
+
+                        <div class="code">
+                            {{ refill_code }}
+                        </div>
+
+                        <p class="warning">
+                            This code can only be used once.
+                        </p>
+
+                    </div>
+
+                {% endif %}
+
+                <div class="admin-section">
+
+                    <h2>Refill an Account</h2>
+
+                    <p>
+                        A student can use a refill code on their account.
+                    </p>
+
+                </div>
 
                 <form method="POST" action="/logout">
 
@@ -473,6 +742,15 @@ AI_HTML = """
             <div class="chat-box">
 
                 <h1>Study Help</h1>
+
+                <p>
+                    Account: <strong>{{ account_name }}</strong>
+                </p>
+
+                <p class="remaining">
+                    Characters remaining:
+                    {{ remaining }}
+                </p>
 
                 <div class="chat">
 
@@ -498,19 +776,59 @@ AI_HTML = """
 
                 </div>
 
-                <form method="POST" action="/chat">
+                {% if remaining > 0 %}
 
-                    <textarea
-                        name="message"
-                        placeholder="What are you working on?"
-                        required
-                    ></textarea>
+                    <form method="POST" action="/chat">
 
-                    <button type="submit">
-                        Send
-                    </button>
+                        <textarea
+                            name="message"
+                            placeholder="What are you working on?"
+                            required
+                        ></textarea>
 
-                </form>
+                        <button type="submit">
+                            Send
+                        </button>
+
+                    </form>
+
+                {% else %}
+
+                    <p class="error">
+                        Your account has used all of its available characters.
+                    </p>
+
+                {% endif %}
+
+                <div class="admin-section">
+
+                    <h2>Have a refill code?</h2>
+
+                    <form method="POST" action="/redeem">
+
+                        <input
+                            type="text"
+                            name="refill_code"
+                            placeholder="Enter refill code"
+                            autocomplete="off"
+                            required
+                        >
+
+                        <button type="submit">
+                            Redeem
+                        </button>
+
+                    </form>
+
+                    {% if redeem_message %}
+
+                        <p class="{{ redeem_class }}">
+                            {{ redeem_message }}
+                        </p>
+
+                    {% endif %}
+
+                </div>
 
                 <form method="POST" action="/logout">
 
@@ -536,24 +854,66 @@ def home():
     return render_template_string(HOME_HTML)
 
 
-@app.route("/ai")
-def ai():
+@app.route("/study")
+def study():
 
-    if check_session():
+    if session.get("admin") and session.get("code_period") == get_code_period():
 
-        if session.get("admin"):
+        accounts_data = load_accounts()
 
-            return render_template_string(
-                AI_HTML,
-                page="admin",
-                current_code=get_current_code(),
-                change_hours=CODE_CHANGE_HOURS
+        account_list = []
+
+        for name, account in accounts_data["accounts"].items():
+
+            used = account.get("characters_used", 0)
+            maximum = account.get("characters_max", ACCOUNT_MAX)
+
+            account_list.append(
+                {
+                    "name": name,
+                    "code": account["account_code"],
+                    "used": used,
+                    "maximum": maximum,
+                    "remaining": max(0, maximum - used)
+                }
             )
 
         return render_template_string(
             AI_HTML,
+            page="admin",
+            current_code=get_current_code(),
+            change_hours=CODE_CHANGE_HOURS,
+            accounts=account_list,
+            created_name=None,
+            created_code=None,
+            refill_code=None
+        )
+
+    if check_session():
+
+        accounts = load_accounts()
+
+        account_name = session.get("account_name")
+
+        if account_name not in accounts["accounts"]:
+
+            session.clear()
+
+            return redirect(url_for("study"))
+
+        account = accounts["accounts"][account_name]
+
+        used = account.get("characters_used", 0)
+        maximum = account.get("characters_max", ACCOUNT_MAX)
+
+        return render_template_string(
+            AI_HTML,
             page="chat",
-            messages=session.get("messages", [])
+            messages=session.get("messages", []),
+            account_name=account_name,
+            remaining=max(0, maximum - used),
+            redeem_message=None,
+            redeem_class=""
         )
 
     session.clear()
@@ -568,37 +928,323 @@ def ai():
 @app.route("/login", methods=["POST"])
 def login():
 
-    code = request.form.get("code", "").strip()
+    access_code = request.form.get("access_code", "").strip()
+    account_code = request.form.get("account_code", "").strip()
 
-    if hmac.compare_digest(code, ADMIN_CODE):
+    if hmac.compare_digest(access_code, ADMIN_CODE):
 
         session["logged_in"] = True
         session["admin"] = True
         session["code_period"] = get_code_period()
 
-        return redirect(url_for("ai"))
+        return redirect(url_for("study"))
 
     current_code = get_current_code()
 
-    if hmac.compare_digest(code, current_code):
+    if not hmac.compare_digest(access_code, current_code):
 
-        session["logged_in"] = True
-        session["admin"] = False
-        session["code_period"] = get_code_period()
+        return render_template_string(
+            AI_HTML,
+            page="login",
+            error="Incorrect or expired access code."
+        )
 
-        session["messages"] = [
+    accounts_data = load_accounts()
+
+    found_account = None
+
+    for name, account in accounts_data["accounts"].items():
+
+        if hmac.compare_digest(
+            account.get("account_code", ""),
+            account_code
+        ):
+
+            found_account = name
+            break
+
+    if found_account is None:
+
+        return render_template_string(
+            AI_HTML,
+            page="login",
+            error="Incorrect permanent account code."
+        )
+
+    session["logged_in"] = True
+    session["admin"] = False
+    session["code_period"] = get_code_period()
+    session["account_name"] = found_account
+
+    session["messages"] = [
+        {
+            "role": "developer",
+            "content": "You are a helpful study assistant. Help the user understand school subjects, explain concepts clearly, and help with studying."
+        }
+    ]
+
+    return redirect(url_for("study"))
+
+
+@app.route("/admin/create", methods=["POST"])
+def create_account():
+
+    if not session.get("admin") or session.get("code_period") != get_code_period():
+
+        session.clear()
+
+        return redirect(url_for("study"))
+
+    name = request.form.get("name", "").strip()
+
+    if not name:
+
+        return redirect(url_for("study"))
+
+    with DRIVE_LOCK:
+
+        accounts_data = load_accounts()
+
+        if name in accounts_data["accounts"]:
+
+            accounts_data["accounts"][name]["characters_max"] = accounts_data["accounts"][name].get(
+                "characters_max",
+                ACCOUNT_MAX
+            )
+
+            save_accounts(accounts_data)
+
+            return render_template_string(
+                AI_HTML,
+                page="admin",
+                current_code=get_current_code(),
+                change_hours=CODE_CHANGE_HOURS,
+                accounts=[
+                    {
+                        "name": account_name,
+                        "code": account["account_code"],
+                        "used": account.get("characters_used", 0),
+                        "maximum": account.get("characters_max", ACCOUNT_MAX),
+                        "remaining": max(
+                            0,
+                            account.get("characters_max", ACCOUNT_MAX)
+                            - account.get("characters_used", 0)
+                        )
+                    }
+                    for account_name, account in accounts_data["accounts"].items()
+                ],
+                created_name=None,
+                created_code=None,
+                refill_code=None
+            )
+
+        existing_codes = {
+            account.get("account_code")
+            for account in accounts_data["accounts"].values()
+        }
+
+        account_code = generate_unique_code(existing_codes)
+
+        accounts_data["accounts"][name] = {
+            "account_code": account_code,
+            "characters_used": 0,
+            "characters_max": ACCOUNT_MAX
+        }
+
+        save_accounts(accounts_data)
+
+    account_list = []
+
+    for account_name, account in accounts_data["accounts"].items():
+
+        used = account.get("characters_used", 0)
+        maximum = account.get("characters_max", ACCOUNT_MAX)
+
+        account_list.append(
             {
-                "role": "developer",
-                "content": "You are a helpful study assistant. Help the user understand school subjects, explain concepts clearly, and help with studying."
+                "name": account_name,
+                "code": account["account_code"],
+                "used": used,
+                "maximum": maximum,
+                "remaining": max(0, maximum - used)
             }
-        ]
-
-        return redirect(url_for("ai"))
+        )
 
     return render_template_string(
         AI_HTML,
-        page="login",
-        error="Incorrect or expired code."
+        page="admin",
+        current_code=get_current_code(),
+        change_hours=CODE_CHANGE_HOURS,
+        accounts=account_list,
+        created_name=name,
+        created_code=account_code,
+        refill_code=None
+    )
+
+
+@app.route("/admin/refill", methods=["POST"])
+def create_refill():
+
+    if not session.get("admin") or session.get("code_period") != get_code_period():
+
+        session.clear()
+
+        return redirect(url_for("study"))
+
+    account_code = request.form.get("account_code", "").strip()
+
+    try:
+        amount = int(request.form.get("amount", "0"))
+    except:
+        amount = 0
+
+    if amount <= 0:
+
+        return redirect(url_for("study"))
+
+    with DRIVE_LOCK:
+
+        accounts_data = load_accounts()
+
+        account_exists = False
+
+        for account in accounts_data["accounts"].values():
+
+            if hmac.compare_digest(
+                account.get("account_code", ""),
+                account_code
+            ):
+
+                account_exists = True
+                break
+
+        if not account_exists:
+
+            return redirect(url_for("study"))
+
+        existing_refill_codes = set(
+            accounts_data.get("refill_codes", {}).keys()
+        )
+
+        refill_code = generate_unique_code(
+            existing_refill_codes
+        )
+
+        accounts_data["refill_codes"][refill_code] = {
+            "account_code": account_code,
+            "amount": amount
+        }
+
+        save_accounts(accounts_data)
+
+    account_list = []
+
+    for account_name, account in accounts_data["accounts"].items():
+
+        used = account.get("characters_used", 0)
+        maximum = account.get("characters_max", ACCOUNT_MAX)
+
+        account_list.append(
+            {
+                "name": account_name,
+                "code": account["account_code"],
+                "used": used,
+                "maximum": maximum,
+                "remaining": max(0, maximum - used)
+            }
+        )
+
+    return render_template_string(
+        AI_HTML,
+        page="admin",
+        current_code=get_current_code(),
+        change_hours=CODE_CHANGE_HOURS,
+        accounts=account_list,
+        created_name=None,
+        created_code=None,
+        refill_code=refill_code
+    )
+
+
+@app.route("/redeem", methods=["POST"])
+def redeem():
+
+    if not check_session() or session.get("admin"):
+
+        session.clear()
+
+        return redirect(url_for("study"))
+
+    refill_code = request.form.get("refill_code", "").strip()
+
+    account_name = session.get("account_name")
+
+    with DRIVE_LOCK:
+
+        accounts_data = load_accounts()
+
+        if refill_code not in accounts_data["refill_codes"]:
+
+            account = accounts_data["accounts"].get(account_name)
+
+            used = account.get("characters_used", 0)
+            maximum = account.get("characters_max", ACCOUNT_MAX)
+
+            return render_template_string(
+                AI_HTML,
+                page="chat",
+                messages=session.get("messages", []),
+                account_name=account_name,
+                remaining=max(0, maximum - used),
+                redeem_message="Invalid or already-used refill code.",
+                redeem_class="error"
+            )
+
+        refill = accounts_data["refill_codes"][refill_code]
+
+        if refill["account_code"] != accounts_data["accounts"][account_name]["account_code"]:
+
+            account = accounts_data["accounts"][account_name]
+
+            used = account.get("characters_used", 0)
+            maximum = account.get("characters_max", ACCOUNT_MAX)
+
+            return render_template_string(
+                AI_HTML,
+                page="chat",
+                messages=session.get("messages", []),
+                account_name=account_name,
+                remaining=max(0, maximum - used),
+                redeem_message="That refill code belongs to another account.",
+                redeem_class="error"
+            )
+
+        amount = refill["amount"]
+
+        accounts_data["accounts"][account_name]["characters_max"] = (
+            accounts_data["accounts"][account_name].get(
+                "characters_max",
+                ACCOUNT_MAX
+            ) + amount
+        )
+
+        del accounts_data["refill_codes"][refill_code]
+
+        save_accounts(accounts_data)
+
+    account = accounts_data["accounts"][account_name]
+
+    used = account.get("characters_used", 0)
+    maximum = account.get("characters_max", ACCOUNT_MAX)
+
+    return render_template_string(
+        AI_HTML,
+        page="chat",
+        messages=session.get("messages", []),
+        account_name=account_name,
+        remaining=max(0, maximum - used),
+        redeem_message=f"{amount:,} characters were added to your account.",
+        redeem_class="success"
     )
 
 
@@ -609,40 +1255,80 @@ def chat():
 
         session.clear()
 
-        return redirect(url_for("ai"))
+        return redirect(url_for("study"))
 
     user_message = request.form.get("message", "").strip()
 
     if not user_message:
 
-        return redirect(url_for("ai"))
+        return redirect(url_for("study"))
 
-    messages = session.get("messages", [])
+    account_name = session.get("account_name")
 
-    messages.append(
-        {
-            "role": "user",
-            "content": user_message
-        }
-    )
+    with DRIVE_LOCK:
 
-    response = client.responses.create(
-        model="gpt-5.6",
-        input=messages
-    )
+        accounts_data = load_accounts()
 
-    answer = response.output_text
+        if account_name not in accounts_data["accounts"]:
 
-    messages.append(
-        {
-            "role": "assistant",
-            "content": answer
-        }
-    )
+            session.clear()
+
+            return redirect(url_for("study"))
+
+        account = accounts_data["accounts"][account_name]
+
+        used = account.get("characters_used", 0)
+        maximum = account.get("characters_max", ACCOUNT_MAX)
+
+        messages = session.get("messages", [])
+
+        response = client.responses.create(
+            model="gpt-5.6",
+            input=messages + [
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ]
+        )
+
+        answer = response.output_text
+
+        total_characters = len(user_message) + len(answer)
+
+        if used + total_characters > maximum:
+
+            return render_template_string(
+                AI_HTML,
+                page="chat",
+                messages=messages,
+                account_name=account_name,
+                remaining=max(0, maximum - used),
+                redeem_message="That message would exceed your character limit.",
+                redeem_class="error"
+            )
+
+        messages.append(
+            {
+                "role": "user",
+                "content": user_message
+            }
+        )
+
+        messages.append(
+            {
+                "role": "assistant",
+                "content": answer
+            }
+        )
+
+        account["characters_used"] = used + total_characters
+
+        save_accounts(accounts_data)
 
     session["messages"] = messages
 
-    return redirect(url_for("ai"))
+    return redirect(url_for("study"))
 
 
 @app.route("/logout", methods=["POST"])
@@ -659,4 +1345,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000))
     )
-
