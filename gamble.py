@@ -15,71 +15,7 @@ DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
 DRIVE_LOCK = threading.Lock()
 
 
-def get_drive_service():
-    credentials_info = json.loads(
-        os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    )
-
-    credentials = service_account.Credentials.from_service_account_info(
-        credentials_info,
-        scopes=["https://www.googleapis.com/auth/drive"]
-    )
-
-    return build("drive", "v3", credentials=credentials)
-
-
-def load_accounts():
-    service = get_drive_service()
-
-    request_media = service.files().get_media(
-        fileId=DRIVE_FILE_ID
-    )
-
-    file_data = io.BytesIO()
-
-    downloader = MediaIoBaseDownload(
-        file_data,
-        request_media
-    )
-
-    done = False
-
-    while not done:
-        _, done = downloader.next_chunk()
-
-    file_data.seek(0)
-
-    accounts = json.loads(
-        file_data.read().decode("utf-8")
-    )
-
-    if "accounts" not in accounts:
-        accounts["accounts"] = {}
-
-    if "refill_codes" not in accounts:
-        accounts["refill_codes"] = {}
-
-    return accounts
-
-
-def save_accounts(accounts):
-    service = get_drive_service()
-
-    data = json.dumps(
-        accounts,
-        indent=4
-    ).encode("utf-8")
-
-    media = MediaIoBaseUpload(
-        io.BytesIO(data),
-        mimetype="application/json",
-        resumable=False
-    )
-
-    service.files().update(
-        fileId=DRIVE_FILE_ID,
-        media_body=media
-    ).execute()
+from storage import load_accounts, save_accounts_async
 
 
 def get_current_account():
@@ -128,7 +64,7 @@ def change_credits(account_name, amount):
         else:
             account["characters_used"] = used - amount
 
-        save_accounts(accounts_data)
+        save_accounts_async(accounts_data)
 
         return max(
             0,
