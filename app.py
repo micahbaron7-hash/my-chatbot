@@ -1,3 +1,4 @@
+from gamble import gamble_bp
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
