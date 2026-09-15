@@ -1,14 +1,13 @@
 from flask import Blueprint, session, redirect, url_for, render_template_string
 
-
 gamble_bp = Blueprint("gamble", __name__)
-
 
 GAMBLE_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Gamble - StudySpace</title>
+
     <style>
         * {
             box-sizing: border-box;
@@ -17,19 +16,20 @@ GAMBLE_HTML = """
         body {
             margin: 0;
             font-family: Arial, sans-serif;
-            background: #f5f7fb;
-            color: #111827;
+            background: #f4f7fb;
+            color: #1f2937;
         }
 
-        header {
+        .top {
             background: white;
-            padding: 20px 30px;
+            padding: 18px 25px;
             border-bottom: 1px solid #e5e7eb;
         }
 
-        header h1 {
-            margin: 0;
-            font-size: 28px;
+        .top a {
+            text-decoration: none;
+            color: #374151;
+            font-weight: bold;
         }
 
         .container {
@@ -38,52 +38,101 @@ GAMBLE_HTML = """
             padding: 20px;
         }
 
-        .back {
-            display: inline-block;
-            margin-bottom: 25px;
-            color: #2563eb;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .game-card {
+        .header {
             background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 30px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            margin-bottom: 25px;
         }
 
-        .game-card h2 {
+        .header h1 {
             margin-top: 0;
         }
 
-        .coming-soon {
+        .header p {
             color: #6b7280;
-            font-size: 18px;
         }
 
-        .account-name {
+        .games {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 18px;
+        }
+
+        .game {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            text-align: center;
+        }
+
+        .game-icon {
+            font-size: 45px;
+            margin-bottom: 15px;
+        }
+
+        .game h2 {
+            margin: 0 0 10px;
+        }
+
+        .game p {
             color: #6b7280;
-            margin-bottom: 25px;
+        }
+
+        .coming {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 9px 15px;
+            background: #e5e7eb;
+            color: #6b7280;
+            border-radius: 8px;
+            font-weight: bold;
         }
     </style>
 </head>
+
 <body>
-    <header>
-        <h1>StudySpace</h1>
-    </header>
+
+    <div class="top">
+        <a href="/study">← Back to AI</a>
+    </div>
 
     <div class="container">
-        <a href="/study" class="back">← Back to AI</a>
 
-        <div class="game-card">
-            <h2>Gamble</h2>
-            <div class="account-name">{{ account_name }}</div>
-            <p class="coming-soon">Games coming soon.</p>
+        <div class="header">
+            <h1>Gamble</h1>
+            <p>Use your StudySpace credits in games.</p>
         </div>
+
+        <div class="games">
+
+            <div class="game">
+                <div class="game-icon">🎰</div>
+                <h2>Slots</h2>
+                <p>Spin the reels and try your luck.</p>
+                <span class="coming">Coming Soon</span>
+            </div>
+
+            <div class="game">
+                <div class="game-icon">🃏</div>
+                <h2>Blackjack</h2>
+                <p>Play against the dealer.</p>
+                <span class="coming">Coming Soon</span>
+            </div>
+
+            <div class="game">
+                <div class="game-icon">🎡</div>
+                <h2>Roulette</h2>
+                <p>Pick a number, color, or bet.</p>
+                <span class="coming">Coming Soon</span>
+            </div>
+
+        </div>
+
     </div>
+
 </body>
 </html>
 """
@@ -97,7 +146,4 @@ def gamble():
     if session.get("admin"):
         return redirect(url_for("study"))
 
-    return render_template_string(
-        GAMBLE_HTML,
-        account_name=session.get("account_name", "")
-    )
+    return render_template_string(GAMBLE_HTML)
