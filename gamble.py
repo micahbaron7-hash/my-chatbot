@@ -12,7 +12,7 @@ import threading
 gamble_bp = Blueprint("gamble", __name__)
 GAMES_CODE = "2468"
 
-from storage import load_accounts, change_account_credits
+from storage import load_accounts, change_account_credits, LOCK as DRIVE_LOCK
 
 
 def get_current_account():
