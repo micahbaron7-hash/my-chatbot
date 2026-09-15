@@ -12,11 +12,7 @@ import threading
 gamble_bp = Blueprint("gamble", __name__)
 GAMES_CODE = "2468"
 
-DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
-DRIVE_LOCK = threading.Lock()
-
-
-from storage import load_accounts, save_accounts_async
+from storage import load_accounts, change_account_credits
 
 
 def get_current_account():
@@ -45,32 +41,7 @@ def get_credits(account):
 
 
 def change_credits(account_name, amount):
-    with DRIVE_LOCK:
-        accounts_data = load_accounts()
-        account = accounts_data.get("accounts", {}).get(account_name)
-
-        if not account:
-            return None
-
-        used = int(account.get("characters_used", 0))
-        maximum = int(account.get("characters_max", 0))
-
-        if amount < 0:
-            cost = -amount
-
-            if maximum - used < cost:
-                return None
-
-            account["characters_used"] = used + cost
-        else:
-            account["characters_used"] = used - amount
-
-        save_accounts_async(accounts_data)
-
-        return max(
-            0,
-            int(account.get("characters_max", 0)) - int(account.get("characters_used", 0))
-        )
+    return change_account_credits(account_name, amount)
 
 
 def create_deck():
