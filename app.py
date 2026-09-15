@@ -1,4 +1,3 @@
-from gamble import gamble_bp
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
@@ -29,6 +28,9 @@ def check_session():
 
 
 from storage import load_accounts, save_accounts, save_accounts_async
+from gamble import gamble_bp
+
+app.register_blueprint(gamble_bp)
 
 
 def generate_unique_code(existing_codes):
@@ -761,28 +763,6 @@ AI_HTML = """
                     </button>
 
                 </form>
-
-            </div>
-
-        {% elif page == "gamble" %}
-
-            <div class="chat-box">
-
-                <h1>Gamble</h1>
-
-                <p>
-                    This is where credit games will go.
-                </p>
-
-                <p>
-                    Games are coming soon.
-                </p>
-
-                <a href="/study" style="text-decoration:none;">
-                    <button type="button" class="back-button">
-                        Back to AI
-                    </button>
-                </a>
 
             </div>
 
