@@ -126,7 +126,7 @@ def change_credits(account_name, amount):
 
             account["characters_used"] = used + cost
         else:
-            account["characters_used"] = max(0, used - amount)
+            account["characters_used"] = used - amount
 
         save_accounts(accounts_data)
 
@@ -464,7 +464,7 @@ def blackjack_start():
     dealer_total = hand_value(dealer_cards)
 
     if player_total == 21:
-        payout = bet + int(bet * 1.4)
+        payout = bet * 2
         result_balance = change_credits(account_name, payout)
 
         game["active"] = False
