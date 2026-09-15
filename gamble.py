@@ -243,16 +243,126 @@ CASINO_HTML = """
             <div class="game-icon">🎰</div>
             <h2>Slots</h2>
             <p>Spin the reels and try your luck.</p>
-            <span class="coming">Coming Soon</span>
+            <a class="play" href="/gamble/slots">Play Slots</a>
         </div>
         <div class="game">
             <div class="game-icon">🎡</div>
             <h2>Roulette</h2>
-            <p>Pick a number, color, or bet.</p>
-            <span class="coming">Coming Soon</span>
+            <p>Pick a number or bet on a color.</p>
+            <a class="play" href="/gamble/roulette">Play Roulette</a>
         </div>
     </div>
 </div>
+</body>
+</html>
+"""
+
+
+SLOTS_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Slots - StudySpace</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #312e81; color: white; }
+        .top { background: #1e1b4b; padding: 18px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .top a { color: white; text-decoration: none; font-weight: bold; }
+        .logout { background: #dc2626; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .container { max-width: 800px; margin: 35px auto; padding: 20px; }
+        .machine { background: #4338ca; border-radius: 20px; padding: 35px; text-align: center; }
+        .balance { font-size: 20px; color: #fbbf24; font-weight: bold; }
+        .reels { display: flex; justify-content: center; gap: 12px; margin: 35px 0; flex-wrap: wrap; }
+        .reel { width: 120px; height: 120px; background: white; color: #111827; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 55px; }
+        input, select { padding: 12px; border: none; border-radius: 8px; font-size: 16px; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; background: #fbbf24; color: #111827; font-weight: bold; cursor: pointer; margin: 5px; }
+        .message { font-size: 22px; font-weight: bold; margin: 20px 0; }
+        .error { color: #fecaca; font-weight: bold; }
+        .payouts { margin-top: 25px; color: #ddd6fe; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="top">
+    <a href="/gamble">← Back to Casino</a>
+    <form method="POST" action="/gamble/logout"><button class="logout" type="submit">Log Out</button></form>
+</div>
+<div class="container">
+    <div class="machine">
+        <h1>🎰 Slots</h1>
+        <div class="balance">Credits: {{ balance }}</div>
+        <div class="reels">
+            {% for symbol in reels %}<div class="reel">{{ symbol }}</div>{% endfor %}
+        </div>
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST" action="/gamble/slots/spin">
+            <p>Bet how many credits?</p>
+            <input type="number" name="bet" min="1" max="{{ balance }}" required>
+            <br><button type="submit">Spin</button>
+        </form>
+        <div class="payouts">Three 7s: 10× · Three matching symbols: 5× · Two matching symbols: 1.5×</div>
+    </div>
+</div>
+</body>
+</html>
+"""
+
+ROULETTE_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Roulette - StudySpace</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #14532d; color: white; }
+        .top { background: #052e16; padding: 18px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .top a { color: white; text-decoration: none; font-weight: bold; }
+        .logout { background: #dc2626; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .container { max-width: 850px; margin: 35px auto; padding: 20px; }
+        .wheel { background: #166534; border-radius: 20px; padding: 35px; text-align: center; }
+        .number { font-size: 70px; font-weight: bold; margin: 25px; }
+        .balance { font-size: 20px; color: #fbbf24; font-weight: bold; }
+        input, select { padding: 12px; border: none; border-radius: 8px; font-size: 16px; margin: 5px; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; background: #fbbf24; color: #111827; font-weight: bold; cursor: pointer; margin: 5px; }
+        .message { font-size: 22px; font-weight: bold; margin: 20px 0; }
+        .error { color: #fecaca; font-weight: bold; }
+        .rules { margin-top: 25px; color: #bbf7d0; font-size: 14px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+<div class="top">
+    <a href="/gamble">← Back to Casino</a>
+    <form method="POST" action="/gamble/logout"><button class="logout" type="submit">Log Out</button></form>
+</div>
+<div class="container">
+    <div class="wheel">
+        <h1>🎡 Roulette</h1>
+        <div class="balance">Credits: {{ balance }}</div>
+        {% if number is not none %}<div class="number">{{ number }}</div>{% else %}<div class="number">?</div>{% endif %}
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST" action="/gamble/roulette/spin">
+            <p>Bet how many credits?</p>
+            <input type="number" name="bet" min="1" max="{{ balance }}" required>
+            <p>What do you want to bet on?</p>
+            <select name="bet_type" id="bet_type" onchange="toggleNumber()">
+                <option value="red">Red</option>
+                <option value="black">Black</option>
+                <option value="odd">Odd</option>
+                <option value="even">Even</option>
+                <option value="number">Specific Number</option>
+            </select>
+            <input type="number" name="number_bet" id="number_bet" min="0" max="36" placeholder="0-36" style="display:none;">
+            <br><button type="submit">Spin Roulette</button>
+        </form>
+        <div class="rules">Red/Black and Odd/Even pay 2× your bet. A correct number pays 35×. 0 is green and loses red/black and odd/even bets.</div>
+    </div>
+</div>
+<script>
+function toggleNumber() {
+    document.getElementById('number_bet').style.display = document.getElementById('bet_type').value === 'number' ? 'inline-block' : 'none';
+}
+</script>
 </body>
 </html>
 """
@@ -381,6 +491,175 @@ def gamble():
 def gamble_logout():
     session.clear()
     return redirect(url_for("study"))
+
+
+@gamble_bp.route("/gamble/slots")
+def slots():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    _, account = get_current_account()
+    if not account:
+        session.clear()
+        return redirect(url_for("study"))
+
+    return render_template_string(
+        SLOTS_HTML,
+        balance=get_credits(account),
+        reels=["❔", "❔", "❔"],
+        message=None,
+        error=None
+    )
+
+
+@gamble_bp.route("/gamble/slots/spin", methods=["POST"])
+def slots_spin():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    account_name, account = get_current_account()
+    if not account_name or not account:
+        session.clear()
+        return redirect(url_for("study"))
+
+    balance = get_credits(account)
+
+    try:
+        bet = int(request.form.get("bet", "0"))
+    except:
+        bet = 0
+
+    if bet <= 0 or bet > balance:
+        return render_template_string(SLOTS_HTML, balance=balance, reels=["❔", "❔", "❔"], message=None, error="Invalid bet.")
+
+    new_balance = change_credits(account_name, -bet)
+    if new_balance is None:
+        return redirect(url_for("gamble.slots"))
+
+    symbols = ["🍒", "🍋", "🍊", "🔔", "⭐", "7️⃣"]
+    weights = [28, 24, 20, 14, 9, 5]
+    reels = random.choices(symbols, weights=weights, k=3)
+
+    payout = 0
+    if reels == ["7️⃣", "7️⃣", "7️⃣"]:
+        payout = bet * 10
+        message = f"JACKPOT! You won {payout:,} credits!"
+    elif reels[0] == reels[1] == reels[2]:
+        payout = bet * 5
+        message = f"Three of a kind! You won {payout:,} credits!"
+    elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+        payout = int(bet * 1.5)
+        message = f"Two match! You won {payout:,} credits!"
+    else:
+        message = f"No match. You lost {bet:,} credits."
+
+    if payout:
+        final_balance = change_credits(account_name, payout)
+    else:
+        final_balance = new_balance
+
+    return render_template_string(
+        SLOTS_HTML,
+        balance=final_balance if final_balance is not None else 0,
+        reels=reels,
+        message=message,
+        error=None
+    )
+
+
+@gamble_bp.route("/gamble/roulette")
+def roulette():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    _, account = get_current_account()
+    if not account:
+        session.clear()
+        return redirect(url_for("study"))
+
+    return render_template_string(
+        ROULETTE_HTML,
+        balance=get_credits(account),
+        number=None,
+        message=None,
+        error=None
+    )
+
+
+@gamble_bp.route("/gamble/roulette/spin", methods=["POST"])
+def roulette_spin():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    account_name, account = get_current_account()
+    if not account_name or not account:
+        session.clear()
+        return redirect(url_for("study"))
+
+    balance = get_credits(account)
+
+    try:
+        bet = int(request.form.get("bet", "0"))
+    except:
+        bet = 0
+
+    bet_type = request.form.get("bet_type", "red")
+
+    try:
+        number_bet = int(request.form.get("number_bet", "-1"))
+    except:
+        number_bet = -1
+
+    if bet <= 0 or bet > balance:
+        return render_template_string(ROULETTE_HTML, balance=balance, number=None, message=None, error="Invalid bet.")
+
+    if bet_type not in ["red", "black", "odd", "even", "number"]:
+        return render_template_string(ROULETTE_HTML, balance=balance, number=None, message=None, error="Invalid bet type.")
+
+    if bet_type == "number" and not 0 <= number_bet <= 36:
+        return render_template_string(ROULETTE_HTML, balance=balance, number=None, message=None, error="Choose a number from 0 to 36.")
+
+    new_balance = change_credits(account_name, -bet)
+    if new_balance is None:
+        return redirect(url_for("gamble.roulette"))
+
+    result = random.randint(0, 36)
+    red_numbers = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
+
+    won = False
+    multiplier = 0
+
+    if bet_type == "number":
+        won = result == number_bet
+        multiplier = 35
+    elif bet_type == "red":
+        won = result in red_numbers
+        multiplier = 1
+    elif bet_type == "black":
+        won = result != 0 and result not in red_numbers
+        multiplier = 1
+    elif bet_type == "odd":
+        won = result != 0 and result % 2 == 1
+        multiplier = 1
+    elif bet_type == "even":
+        won = result != 0 and result % 2 == 0
+        multiplier = 1
+
+    if won:
+        payout = bet * (multiplier + 1)
+        final_balance = change_credits(account_name, payout)
+        message = f"You won {payout:,} credits!"
+    else:
+        final_balance = new_balance
+        message = f"You lost {bet:,} credits."
+
+    return render_template_string(
+        ROULETTE_HTML,
+        balance=final_balance if final_balance is not None else 0,
+        number=result,
+        message=message,
+        error=None
+    )
 
 
 @gamble_bp.route("/gamble/blackjack")
