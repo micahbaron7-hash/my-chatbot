@@ -1,4 +1,3 @@
-from gamble import gamble_bp
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
@@ -13,7 +12,6 @@ import threading
 import math
 
 app = Flask(__name__)
-app.register_blueprint(gamble_bp)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -29,71 +27,7 @@ def check_session():
     return session.get("logged_in")
 
 
-def get_drive_service():
-    credentials_info = json.loads(
-        os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    )
-
-    credentials = service_account.Credentials.from_service_account_info(
-        credentials_info,
-        scopes=["https://www.googleapis.com/auth/drive"]
-    )
-
-    return build("drive", "v3", credentials=credentials)
-
-
-def load_accounts():
-    service = get_drive_service()
-
-    request_media = service.files().get_media(
-        fileId=DRIVE_FILE_ID
-    )
-
-    file_data = io.BytesIO()
-
-    downloader = MediaIoBaseDownload(
-        file_data,
-        request_media
-    )
-
-    done = False
-
-    while not done:
-        _, done = downloader.next_chunk()
-
-    file_data.seek(0)
-
-    accounts = json.loads(
-        file_data.read().decode("utf-8")
-    )
-
-    if "accounts" not in accounts:
-        accounts["accounts"] = {}
-
-    if "refill_codes" not in accounts:
-        accounts["refill_codes"] = {}
-
-    return accounts
-
-
-def save_accounts(accounts):
-    service = get_drive_service()
-
-    data = json.dumps(
-        accounts,
-        indent=4
-    ).encode("utf-8")
-
-    media = MediaIoBaseUpload(
-        io.BytesIO(data),
-        mimetype="application/json",
-        resumable=False
-    )
-
-    service.files().update(
-        fileId=DRIVE_FILE_ID,
-        media_body=media
-    ).execute()
+from storage import load_accounts, save_accounts, save_accounts_async
 
 
 def generate_unique_code(existing_codes):
@@ -102,6 +36,25 @@ def generate_unique_code(existing_codes):
 
         if code not in existing_codes:
             return code
+
+
+def get_token_requests(accounts_data):
+    requests = []
+
+    for account_code, request_data in accounts_data.get("token_requests", {}).items():
+        account_name = request_data.get("account_name", "Unknown")
+        amount = request_data.get("amount", 0)
+
+        if account_name in accounts_data.get("accounts", {}):
+            requests.append(
+                {
+                    "name": account_name,
+                    "code": account_code,
+                    "amount": amount
+                }
+            )
+
+    return requests
 
 
 HOME_HTML = """
@@ -497,9 +450,21 @@ AI_HTML = """
             background: #dc2626;
         }
 
+        .request-button {
+            background: #2563eb;
+        }
+
         .remaining {
             color: #2563eb;
             font-weight: bold;
+        }
+
+        .gamble-button {
+            background: #7c3aed;
+        }
+
+        .back-button {
+            background: #6b7280;
         }
     </style>
 </head>
@@ -592,6 +557,64 @@ AI_HTML = """
                         <div class="code">
                             {{ created_code }}
                         </div>
+
+                    {% endif %}
+
+                </div>
+
+                <div class="admin-section">
+
+                    <h2>Token Requests</h2>
+
+                    {% if token_requests %}
+
+                        {% for request_item in token_requests %}
+
+                            <div class="account">
+
+                                <strong>{{ request_item.name }}</strong>
+
+                                <p>
+                                    Requested: <strong>{{ request_item.amount }}</strong> tokens
+                                </p>
+
+                                <form method="POST" action="/admin/token-request/accept" style="display:inline;">
+
+                                    <input
+                                        type="hidden"
+                                        name="account_code"
+                                        value="{{ request_item.code }}"
+                                    >
+
+                                    <button type="submit">
+                                        Accept
+                                    </button>
+
+                                </form>
+
+                                <form method="POST" action="/admin/token-request/deny" style="display:inline;">
+
+                                    <input
+                                        type="hidden"
+                                        name="account_code"
+                                        value="{{ request_item.code }}"
+                                    >
+
+                                    <button type="submit" class="delete-button">
+                                        Deny
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        {% endfor %}
+
+                    {% else %}
+
+                        <p>
+                            No token requests.
+                        </p>
 
                     {% endif %}
 
@@ -740,6 +763,28 @@ AI_HTML = """
 
             </div>
 
+        {% elif page == "gamble" %}
+
+            <div class="chat-box">
+
+                <h1>Gamble</h1>
+
+                <p>
+                    This is where credit games will go.
+                </p>
+
+                <p>
+                    Games are coming soon.
+                </p>
+
+                <a href="/study" style="text-decoration:none;">
+                    <button type="button" class="back-button">
+                        Back to AI
+                    </button>
+                </a>
+
+            </div>
+
         {% elif page == "chat" %}
 
             <div class="chat-box">
@@ -805,6 +850,52 @@ AI_HTML = """
 
                 <div class="admin-section">
 
+                    <h2>Games</h2>
+
+                    <a href="/gamble" style="text-decoration:none;">
+                        <button type="button" class="gamble-button">
+                            Gamble
+                        </button>
+                    </a>
+
+                </div>
+
+                <div class="admin-section">
+
+                    <h2>Need more tokens?</h2>
+
+                    {% if token_request_pending %}
+
+                        <p class="success">
+                            Your token request is waiting for admin approval.
+                        </p>
+
+                    {% else %}
+
+                        <form method="POST" action="/request-tokens">
+
+                            <input
+                                type="number"
+                                name="amount"
+                                placeholder="Tokens to request"
+                                min="1"
+                                required
+                            >
+
+                            <br>
+
+                            <button type="submit" class="request-button">
+                                Request Tokens
+                            </button>
+
+                        </form>
+
+                    {% endif %}
+
+                </div>
+
+                <div class="admin-section">
+
                     <h2>Have a refill code?</h2>
 
                     <form method="POST" action="/redeem">
@@ -832,12 +923,6 @@ AI_HTML = """
                     {% endif %}
 
                 </div>
-                
-                <a href="/gamble" style="text-decoration:none;">
-                    <button type="button">
-                        Gamble
-                    </button>
-                 </a>
 
                 <form method="POST" action="/logout">
 
@@ -891,6 +976,7 @@ def study():
             AI_HTML,
             page="admin",
             accounts=account_list,
+            token_requests=get_token_requests(accounts_data),
             created_name=None,
             created_code=None,
             refill_code=None
@@ -929,6 +1015,17 @@ def study():
         AI_HTML,
         page="login",
         error=None
+    )
+
+
+@app.route("/gamble")
+def gamble():
+    if not check_session() or session.get("admin"):
+        return redirect(url_for("study"))
+
+    return render_template_string(
+        AI_HTML,
+        page="gamble"
     )
 
 
@@ -1063,6 +1160,7 @@ def create_account():
         AI_HTML,
         page="admin",
         accounts=account_list,
+        token_requests=get_token_requests(accounts_data),
         created_name=name,
         created_code=account_code,
         refill_code=None
@@ -1120,6 +1218,7 @@ def create_refill():
         AI_HTML,
         page="admin",
         accounts=account_list,
+        token_requests=get_token_requests(accounts_data),
         created_name=None,
         created_code=None,
         refill_code=refill_code
@@ -1251,6 +1350,100 @@ def delete_account():
     )
 
 
+@app.route("/request-tokens", methods=["POST"])
+def request_tokens():
+
+    if not check_session() or session.get("admin"):
+        session.clear()
+        return redirect(url_for("study"))
+
+    try:
+        amount = int(request.form.get("amount", "0"))
+    except:
+        amount = 0
+
+    if amount <= 0:
+        return redirect(url_for("study"))
+
+    account_name = session.get("account_name")
+
+    with DRIVE_LOCK:
+        accounts_data = load_accounts()
+
+        if account_name not in accounts_data["accounts"]:
+            session.clear()
+            return redirect(url_for("study"))
+
+        account = accounts_data["accounts"][account_name]
+        account_code = account.get("account_code")
+
+        if account_code in accounts_data.get("token_requests", {}):
+            return redirect(url_for("study"))
+
+        accounts_data["token_requests"][account_code] = {
+            "account_name": account_name,
+            "amount": amount
+        }
+
+        save_accounts(accounts_data)
+
+    return redirect(url_for("study"))
+
+
+@app.route("/admin/token-request/accept", methods=["POST"])
+def accept_token_request():
+
+    if not session.get("admin"):
+        session.clear()
+        return redirect(url_for("study"))
+
+    account_code = request.form.get("account_code", "").strip()
+
+    with DRIVE_LOCK:
+        accounts_data = load_accounts()
+        token_requests = accounts_data.get("token_requests", {})
+
+        if account_code not in token_requests:
+            return redirect(url_for("study"))
+
+        request_data = token_requests[account_code]
+        account_name = request_data.get("account_name")
+        amount = int(request_data.get("amount", 0))
+
+        if account_name not in accounts_data["accounts"] or amount <= 0:
+            del token_requests[account_code]
+            save_accounts(accounts_data)
+            return redirect(url_for("study"))
+
+        account = accounts_data["accounts"][account_name]
+        account["characters_max"] = account.get("characters_max", ACCOUNT_MAX) + amount
+
+        del token_requests[account_code]
+        save_accounts(accounts_data)
+
+    return redirect(url_for("study"))
+
+
+@app.route("/admin/token-request/deny", methods=["POST"])
+def deny_token_request():
+
+    if not session.get("admin"):
+        session.clear()
+        return redirect(url_for("study"))
+
+    account_code = request.form.get("account_code", "").strip()
+
+    with DRIVE_LOCK:
+        accounts_data = load_accounts()
+        token_requests = accounts_data.get("token_requests", {})
+
+        if account_code in token_requests:
+            del token_requests[account_code]
+            save_accounts(accounts_data)
+
+    return redirect(url_for("study"))
+
+
 @app.route("/redeem", methods=["POST"])
 def redeem():
 
@@ -1305,6 +1498,7 @@ def redeem():
         messages=session.get("messages", []),
         account_name=account_name,
         remaining=max(0, maximum - used),
+        token_request_pending=account_name in accounts_data.get("token_requests", {}),
         redeem_message=f"{amount:,} characters were added to your account.",
         redeem_class="success"
     )
@@ -1312,127 +1506,99 @@ def redeem():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-
     if not check_session() or session.get("admin"):
         session.clear()
         return redirect(url_for("study"))
 
     user_message = request.form.get("message", "").strip()
-
     if not user_message:
         return redirect(url_for("study"))
 
     account_name = session.get("account_name")
+    accounts_data = load_accounts()
+    account = accounts_data.get("accounts", {}).get(account_name)
 
-    with DRIVE_LOCK:
-        accounts_data = load_accounts()
+    if not account:
+        session.clear()
+        return redirect(url_for("study"))
 
-        if account_name not in accounts_data["accounts"]:
-            session.clear()
-            return redirect(url_for("study"))
+    used = int(account.get("characters_used", 0))
+    maximum = int(account.get("characters_max", ACCOUNT_MAX))
+    remaining = max(0, maximum - used)
+    input_characters = len(user_message)
 
-        account = accounts_data["accounts"][account_name]
-
-        used = account.get("characters_used", 0)
-        maximum = account.get("characters_max", ACCOUNT_MAX)
-
-        messages = session.get("messages", [])
-
-        input_characters = len(user_message)
-        remaining = max(0, maximum - used)
-
-        if input_characters > remaining:
-            return render_template_string(
-                AI_HTML,
-                page="chat",
-                messages=messages,
-                account_name=account_name,
-                remaining=remaining,
-                redeem_message="Your message is longer than your remaining characters.",
-                redeem_class="error"
-            )
-
-        response_characters_available = remaining - input_characters
-
-        if response_characters_available <= 0:
-            return render_template_string(
-                AI_HTML,
-                page="chat",
-                messages=messages,
-                account_name=account_name,
-                remaining=remaining,
-                redeem_message="You do not have enough characters left for a response.",
-                redeem_class="error"
-            )
-
-        if response_characters_available < 16:
-            return render_template_string(
-                AI_HTML,
-                page="chat",
-                messages=messages,
-                account_name=account_name,
-                remaining=remaining,
-                redeem_message="You do not have enough characters left for a response.",
-                redeem_class="error"
-            )
-
-        response_token_limit = max(
-            16,
-            math.ceil(response_characters_available / 4)
+    if input_characters > remaining:
+        return render_template_string(
+            AI_HTML,
+            page="chat",
+            messages=session.get("messages", []),
+            account_name=account_name,
+            remaining=remaining,
+            token_request_pending=account_name in accounts_data.get("token_requests", {}),
+            redeem_message="Your message is longer than your remaining characters.",
+            redeem_class="error"
         )
 
-        try:
-            response = client.responses.create(
-                model="gpt-5.6",
-                input=messages + [
-                    {
-                        "role": "user",
-                        "content": user_message
-                    }
-                ],
-                max_output_tokens=response_token_limit
-            )
+    response_characters_available = remaining - input_characters
+    if response_characters_available < 16:
+        return render_template_string(
+            AI_HTML,
+            page="chat",
+            messages=session.get("messages", []),
+            account_name=account_name,
+            remaining=remaining,
+            token_request_pending=account_name in accounts_data.get("token_requests", {}),
+            redeem_message="You do not have enough characters left for a response.",
+            redeem_class="error"
+        )
 
-            answer = response.output_text
+    messages = session.get("messages", [])
+    if not messages or messages[0].get("role") != "developer":
+        messages = [{
+            "role": "developer",
+            "content": "You are a helpful study assistant. Help the user understand school subjects, explain concepts clearly, and help with studying."
+        }] + messages
 
-        except Exception as e:
-            return render_template_string(
-                AI_HTML,
-                page="chat",
-                messages=messages,
-                account_name=account_name,
-                remaining=remaining,
-                redeem_message=f"Error: {str(e)}",
-                redeem_class="error"
-            )
+    context_messages = [messages[0]] + messages[-10:]
+    context_messages.append({"role": "user", "content": user_message})
 
+    response_token_limit = max(16, min(4096, math.ceil(response_characters_available / 4)))
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.6-luna",
+            input=context_messages,
+            max_output_tokens=response_token_limit
+        )
+        answer = response.output_text
+    except Exception as e:
+        return render_template_string(
+            AI_HTML,
+            page="chat",
+            messages=messages,
+            account_name=account_name,
+            remaining=remaining,
+            token_request_pending=account_name in accounts_data.get("token_requests", {}),
+            redeem_message=f"Error: {str(e)}",
+            redeem_class="error"
+        )
+
+    response_characters = len(answer)
+    total_characters = input_characters + response_characters
+
+    if total_characters > remaining:
+        answer = answer[:max(0, remaining - input_characters)]
         response_characters = len(answer)
         total_characters = input_characters + response_characters
 
-        if total_characters > remaining:
-            answer = answer[:max(0, remaining - input_characters)]
-            response_characters = len(answer)
-            total_characters = input_characters + response_characters
-
-        messages.append(
-            {
-                "role": "user",
-                "content": user_message
-            }
-        )
-
-        messages.append(
-            {
-                "role": "assistant",
-                "content": answer
-            }
-        )
-
-        account["characters_used"] = used + total_characters
-
-        save_accounts(accounts_data)
-
+    messages.append({"role": "user", "content": user_message})
+    messages.append({"role": "assistant", "content": answer})
+    messages = [messages[0]] + messages[-10:]
     session["messages"] = messages
+
+    account["characters_used"] = used + total_characters
+    accounts_data["accounts"][account_name] = account
+    save_accounts_async(accounts_data)
 
     return redirect(url_for("study"))
 
