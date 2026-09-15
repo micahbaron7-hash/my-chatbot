@@ -10,6 +10,7 @@ import threading
 
 
 gamble_bp = Blueprint("gamble", __name__)
+GAMES_CODE = "2468"
 
 DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
 DRIVE_LOCK = threading.Lock()
@@ -129,6 +130,39 @@ def is_soft_hand(hand):
             aces += 1
 
     return aces > 0 and total <= 21
+
+
+GAMES_CODE_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Games Access - StudySpace</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #111827; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .box { width: min(420px, 90%); background: #1f2937; border-radius: 18px; padding: 35px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,.35); }
+        h1 { margin-top: 0; }
+        p { color: #9ca3af; }
+        input { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 20px; text-align: center; margin: 15px 0; }
+        button { width: 100%; padding: 13px; border: none; border-radius: 8px; background: #2563eb; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .error { color: #fca5a5; font-weight: bold; margin-bottom: 12px; }
+        .back { display: inline-block; margin-top: 18px; color: #93c5fd; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <h1>🎮 Games</h1>
+    <p>Enter the games access code to continue.</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="POST" action="/gamble/code">
+        <input type="password" name="code" inputmode="numeric" maxlength="4" placeholder="Access code" required autofocus>
+        <button type="submit">Enter Games</button>
+    </form>
+    <a class="back" href="/study">← Back to StudySpace</a>
+</div>
+</body>
+</html>
+"""
 
 
 CASINO_HTML = """
@@ -488,6 +522,51 @@ BLACKJACK_HTML = """
 </body>
 </html>
 """
+
+
+@gamble_bp.before_request
+def require_games_code():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    if request.endpoint in {"gamble.games_code", "gamble.games_logout"}:
+        return None
+
+    if not session.get("games_access"):
+        return redirect(url_for("gamble.games_code"))
+
+    return None
+
+
+@gamble_bp.route("/gamble/code", methods=["GET", "POST"])
+def games_code():
+    if not session.get("logged_in") or session.get("admin"):
+        return redirect(url_for("study"))
+
+    if session.get("games_access"):
+        return redirect(url_for("gamble.gamble"))
+
+    error = None
+
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+
+        if code == GAMES_CODE:
+            session["games_access"] = True
+            session.pop("games_code_error", None)
+            return redirect(url_for("gamble.gamble"))
+
+        error = "Incorrect access code."
+
+    return render_template_string(GAMES_CODE_HTML, error=error)
+
+
+@gamble_bp.route("/gamble/games-logout", methods=["POST"])
+def games_logout():
+    session.pop("games_access", None)
+    session.pop("blackjack", None)
+    session.pop("poker", None)
+    return redirect(url_for("study"))
 
 
 @gamble_bp.route("/gamble")
