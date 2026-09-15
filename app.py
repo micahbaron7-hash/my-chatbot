@@ -1,3 +1,4 @@
+from flask import Blueprint, request, session, redirect, url_for, render_template_string
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
@@ -10,6 +11,8 @@ import json
 import io
 import threading
 import math
+
+gamble_bp = Blueprint("gamble", __name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
