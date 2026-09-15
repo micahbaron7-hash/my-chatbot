@@ -852,7 +852,7 @@ AI_HTML = """
 
                     <h2>Games</h2>
 
-                    <a href="/gamble" style="text-decoration:none;">
+                    <a href="/gamble/code" style="text-decoration:none;">
                         <button type="button" class="gamble-button">
                             Gamble
                         </button>
@@ -1015,17 +1015,6 @@ def study():
         AI_HTML,
         page="login",
         error=None
-    )
-
-
-@app.route("/gamble")
-def gamble():
-    if not check_session() or session.get("admin"):
-        return redirect(url_for("study"))
-
-    return render_template_string(
-        AI_HTML,
-        page="gamble"
     )
 
 
