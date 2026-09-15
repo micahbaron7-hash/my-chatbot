@@ -1,4 +1,3 @@
-from flask import Blueprint, request, session, redirect, url_for, render_template_string
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
@@ -11,7 +10,6 @@ import json
 import io
 import threading
 import math
-
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
@@ -29,7 +27,7 @@ def check_session():
     return session.get("logged_in")
 
 
-from storage import load_accounts, save_accounts, save_accounts_async
+from storage import load_accounts, save_accounts
 from gamble import gamble_bp
 
 app.register_blueprint(gamble_bp)
@@ -1570,7 +1568,7 @@ def chat():
 
     account["characters_used"] = used + total_characters
     accounts_data["accounts"][account_name] = account
-    save_accounts_async(accounts_data)
+    save_accounts(accounts_data)
 
     return redirect(url_for("study"))
 
