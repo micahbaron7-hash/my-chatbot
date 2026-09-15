@@ -1,3 +1,4 @@
+from gamble import gamble_bp
 from flask import Flask, request, session, redirect, url_for, render_template_string
 from openai import OpenAI
 from google.oauth2 import service_account
@@ -12,6 +13,7 @@ import threading
 import math
 
 app = Flask(__name__)
+app.register_blueprint(gamble_bp)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "studyspace-secret-key")
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
