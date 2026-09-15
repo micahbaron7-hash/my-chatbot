@@ -2,26 +2,25 @@ import os
 import json
 import io
 import copy
-import time
 import threading
-import queue
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
-CACHE_TTL = 3.0
 SERVICE = None
-CACHE = None
-CACHE_TIME = 0.0
 LOCK = threading.RLock()
-SAVE_QUEUE = queue.Queue()
 
 def get_drive_service():
     global SERVICE
     with LOCK:
         if SERVICE is None:
-            credentials_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"))
+            raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+            if not raw:
+                raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not set")
+            if not DRIVE_FILE_ID:
+                raise RuntimeError("GOOGLE_DRIVE_FILE_ID is not set")
+            credentials_info = json.loads(raw)
             credentials = service_account.Credentials.from_service_account_info(
                 credentials_info,
                 scopes=["https://www.googleapis.com/auth/drive"]
@@ -38,53 +37,50 @@ def _download_accounts():
     while not done:
         _, done = downloader.next_chunk()
     file_data.seek(0)
-    accounts = json.loads(file_data.read().decode("utf-8"))
+    raw = file_data.read().decode("utf-8")
+    accounts = json.loads(raw) if raw.strip() else {}
     accounts.setdefault("accounts", {})
     accounts.setdefault("refill_codes", {})
     accounts.setdefault("token_requests", {})
     return accounts
 
-def load_accounts(force=False):
-    global CACHE, CACHE_TIME
+def load_accounts(force=True):
     with LOCK:
-        now = time.monotonic()
-        if not force and CACHE is not None and now - CACHE_TIME < CACHE_TTL:
-            return copy.deepcopy(CACHE)
-        CACHE = _download_accounts()
-        CACHE_TIME = now
-        return copy.deepcopy(CACHE)
+        return copy.deepcopy(_download_accounts())
 
 def _write_accounts(accounts):
     service = get_drive_service()
-    data = json.dumps(accounts, separators=(",", ":")).encode("utf-8")
+    data = json.dumps(accounts, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     media = MediaIoBaseUpload(io.BytesIO(data), mimetype="application/json", resumable=False)
     service.files().update(fileId=DRIVE_FILE_ID, media_body=media).execute()
 
 def save_accounts(accounts):
-    global CACHE, CACHE_TIME
     snapshot = copy.deepcopy(accounts)
     with LOCK:
-        CACHE = snapshot
-        CACHE_TIME = time.monotonic()
         _write_accounts(snapshot)
+    return True
 
 def save_accounts_async(accounts):
-    global CACHE, CACHE_TIME
-    snapshot = copy.deepcopy(accounts)
+    # Kept for compatibility. Persistence is deliberately synchronous so data cannot be lost.
+    return save_accounts(accounts)
+
+def change_account_credits(account_name, amount):
     with LOCK:
-        CACHE = snapshot
-        CACHE_TIME = time.monotonic()
-    SAVE_QUEUE.put(snapshot)
+        accounts_data = _download_accounts()
+        account = accounts_data.get("accounts", {}).get(account_name)
+        if not account:
+            return None
 
-def _save_worker():
-    while True:
-        snapshot = SAVE_QUEUE.get()
-        try:
-            with LOCK:
-                _write_accounts(snapshot)
-        except Exception:
-            pass
-        finally:
-            SAVE_QUEUE.task_done()
+        used = int(account.get("characters_used", 0))
+        maximum = int(account.get("characters_max", 0))
 
-threading.Thread(target=_save_worker, daemon=True).start()
+        if amount < 0:
+            cost = -int(amount)
+            if maximum - used < cost:
+                return None
+            account["characters_used"] = used + cost
+        else:
+            account["characters_used"] = used - int(amount)
+
+        _write_accounts(accounts_data)
+        return max(0, maximum - int(account.get("characters_used", 0)))
