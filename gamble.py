@@ -9,37 +9,30 @@ GAMBLE_LOGIN_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gamble - StudySpace</title>
+    <title>Casino - StudySpace</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             font-family: Arial, sans-serif;
             background: #f4f7fb;
             color: #1f2937;
         }
-
         .top {
             background: white;
             padding: 18px 25px;
             border-bottom: 1px solid #e5e7eb;
         }
-
         .top a {
             text-decoration: none;
             color: #374151;
             font-weight: bold;
         }
-
         .container {
             max-width: 500px;
             margin: 80px auto;
             padding: 20px;
         }
-
         .box {
             background: white;
             border-radius: 18px;
@@ -47,15 +40,8 @@ GAMBLE_LOGIN_HTML = """
             box-shadow: 0 4px 15px rgba(0,0,0,0.06);
             text-align: center;
         }
-
-        h1 {
-            margin-top: 0;
-        }
-
-        p {
-            color: #6b7280;
-        }
-
+        h1 { margin-top: 0; }
+        p { color: #6b7280; }
         input {
             width: 100%;
             padding: 13px;
@@ -65,7 +51,6 @@ GAMBLE_LOGIN_HTML = """
             font-size: 16px;
             text-align: center;
         }
-
         button {
             width: 100%;
             padding: 13px;
@@ -77,11 +62,9 @@ GAMBLE_LOGIN_HTML = """
             font-weight: bold;
             cursor: pointer;
         }
-
         button:hover {
             background: #1d4ed8;
         }
-
         .error {
             color: #dc2626;
             font-weight: bold;
@@ -90,39 +73,34 @@ GAMBLE_LOGIN_HTML = """
 </head>
 <body>
 
-    <div class="top">
-        <a href="/study">← Back to AI</a>
+<div class="top">
+    <a href="/study">← Back to AI</a>
+</div>
+
+<div class="container">
+    <div class="box">
+        <h1>Casino</h1>
+        <p>Enter the casino access code.</p>
+
+        <form method="POST" action="/gamble/unlock">
+            <input
+                type="password"
+                name="gamble_code"
+                placeholder="Casino code"
+                autocomplete="off"
+                required
+            >
+
+            <button type="submit">
+                Enter Casino
+            </button>
+        </form>
+
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
     </div>
-
-    <div class="container">
-        <div class="box">
-            <h1>Casino</h1>
-
-            <p>
-                Enter the casino access code.
-            </p>
-
-            <form method="POST" action="/gamble/unlock">
-                <input
-                    type="password"
-                    name="gamble_code"
-                    placeholder="Casino code"
-                    autocomplete="off"
-                    required
-                >
-
-                <button type="submit">
-                    Enter Casino
-                </button>
-            </form>
-
-            {% if error %}
-                <p class="error">
-                    {{ error }}
-                </p>
-            {% endif %}
-        </div>
-    </div>
+</div>
 
 </body>
 </html>
@@ -133,11 +111,8 @@ GAMBLE_HTML = """
 <html>
 <head>
     <title>Casino - StudySpace</title>
-
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -169,10 +144,6 @@ GAMBLE_HTML = """
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-        }
-
-        .logout:hover {
-            background: #b91c1c;
         }
 
         .container {
@@ -210,16 +181,16 @@ GAMBLE_HTML = """
             background: #1f2937;
             border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .game h2 {
-            margin-top: 0;
+            text-align: center;
         }
 
         .game-icon {
             font-size: 45px;
             margin-bottom: 15px;
+        }
+
+        .game h2 {
+            margin: 0 0 10px;
         }
 
         .game p {
@@ -237,10 +208,6 @@ GAMBLE_HTML = """
             font-weight: bold;
         }
 
-        .play:hover {
-            background: #1d4ed8;
-        }
-
         .coming {
             display: inline-block;
             margin-top: 10px;
@@ -250,139 +217,78 @@ GAMBLE_HTML = """
             border-radius: 8px;
             font-weight: bold;
         }
-
-        .blackjack {
-            margin-top: 30px;
-            background: #064e3b;
-            border-radius: 18px;
-            padding: 30px;
-        }
-
-        .cards {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .card {
-            background: white;
-            color: black;
-            width: 70px;
-            height: 95px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: bold;
-        }
-
-        .game-button {
-            padding: 12px 18px;
-            border: none;
-            border-radius: 8px;
-            background: #fbbf24;
-            color: #111827;
-            font-weight: bold;
-            cursor: pointer;
-            margin: 5px;
-        }
-
-        .game-button:hover {
-            background: #f59e0b;
-        }
-
-        .message {
-            font-size: 20px;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-
-        .bet-form {
-            margin: 20px 0;
-        }
-
-        .bet-form input {
-            padding: 11px;
-            border-radius: 8px;
-            border: none;
-            width: 150px;
-            font-size: 16px;
-        }
     </style>
 </head>
-
 <body>
 
-    <div class="top">
-        <a href="/study">← Back to AI</a>
+<div class="top">
+    <a href="/study">← Back to AI</a>
 
-        <form method="POST" action="/gamble/logout">
-            <button class="logout" type="submit">
-                Log Out
-            </button>
-        </form>
+    <form method="POST" action="/gamble/logout">
+        <button class="logout" type="submit">
+            Log Out
+        </button>
+    </form>
+</div>
+
+<div class="container">
+
+    <div class="header">
+        <h1>🎰 Casino</h1>
+        <p>Welcome to the StudySpace casino.</p>
+
+        <div class="balance">
+            Demo Credits: {{ balance }}
+        </div>
     </div>
 
-    <div class="container">
+    <div class="games">
 
-        <div class="header">
-            <h1>🎰 Casino</h1>
-            <p>Welcome to the StudySpace casino.</p>
+        <div class="game">
+            <div class="game-icon">🃏</div>
 
-            <div class="balance">
-                Demo Credits: {{ balance }}
-            </div>
+            <h2>Blackjack</h2>
+
+            <p>
+                Try to get closer to 21 than the dealer.
+            </p>
+
+            <a class="play" href="/gamble/blackjack">
+                Play Blackjack
+            </a>
         </div>
 
-        <div class="games">
+        <div class="game">
+            <div class="game-icon">🎰</div>
 
-            <div class="game">
-                <div class="game-icon">🃏</div>
+            <h2>Slots</h2>
 
-                <h2>Blackjack</h2>
+            <p>
+                Spin the reels and try your luck.
+            </p>
 
-                <p>
-                    Try to get closer to 21 than the dealer.
-                </p>
+            <span class="coming">
+                Coming Soon
+            </span>
+        </div>
 
-                <a class="play" href="/gamble/blackjack">
-                    Play Blackjack
-                </a>
-            </div>
+        <div class="game">
+            <div class="game-icon">🎡</div>
 
-            <div class="game">
-                <div class="game-icon">🎰</div>
+            <h2>Roulette</h2>
 
-                <h2>Slots</h2>
+            <p>
+                Pick a number, color, or bet.
+            </p>
 
-                <p>
-                    Spin the reels and try your luck.
-                </p>
-
-                <span class="coming">
-                    Coming Soon
-                </span>
-            </div>
-
-            <div class="game">
-                <div class="game-icon">🎡</div>
-
-                <h2>Roulette</h2>
-
-                <p>
-                    Pick a number, color, or bet.
-                </p>
-
-                <span class="coming">
-                    Coming Soon
-                </span>
-            </div>
-
+            <span class="coming">
+                Coming Soon
+            </span>
         </div>
 
     </div>
+
+</div>
 
 </body>
 </html>
@@ -393,11 +299,8 @@ BLACKJACK_HTML = """
 <html>
 <head>
     <title>Blackjack - StudySpace</title>
-
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -444,10 +347,6 @@ BLACKJACK_HTML = """
             text-align: center;
         }
 
-        h1 {
-            margin-top: 0;
-        }
-
         .balance {
             font-size: 20px;
             color: #fbbf24;
@@ -479,10 +378,6 @@ BLACKJACK_HTML = """
             font-weight: bold;
         }
 
-        .red {
-            color: #dc2626;
-        }
-
         .bet {
             margin: 25px 0;
         }
@@ -506,10 +401,6 @@ BLACKJACK_HTML = """
             margin: 5px;
         }
 
-        button:hover {
-            background: #f59e0b;
-        }
-
         .message {
             font-size: 22px;
             font-weight: bold;
@@ -522,118 +413,129 @@ BLACKJACK_HTML = """
         }
     </style>
 </head>
-
 <body>
 
-    <div class="top">
-        <a href="/gamble">← Back to Casino</a>
+<div class="top">
+    <a href="/gamble">← Back to Casino</a>
 
-        <form method="POST" action="/gamble/logout">
-            <button class="logout" type="submit">
-                Log Out
-            </button>
-        </form>
-    </div>
+    <form method="POST" action="/gamble/logout">
+        <button class="logout" type="submit">
+            Log Out
+        </button>
+    </form>
+</div>
 
-    <div class="container">
+<div class="container">
 
-        <div class="table">
+    <div class="table">
 
-            <h1>🃏 Blackjack</h1>
+        <h1>🃏 Blackjack</h1>
 
-            <div class="balance">
-                Demo Credits: {{ balance }}
+        <div class="balance">
+            Demo Credits: {{ balance }}
+        </div>
+
+        {% if not game_started %}
+
+            <div class="bet">
+
+                <form method="POST" action="/gamble/blackjack/start">
+
+                    <p>How many credits do you want to bet?</p>
+
+                    <input
+                        type="number"
+                        name="bet"
+                        min="1"
+                        max="{{ balance }}"
+                        required
+                    >
+
+                    <br>
+
+                    <button type="submit">
+                        Deal
+                    </button>
+
+                </form>
+
             </div>
 
-            {% if not game_started %}
-
-                <div class="bet">
-                    <form method="POST" action="/gamble/blackjack/start">
-
-                        <p>How many credits do you want to bet?</p>
-
-                        <input
-                            type="number"
-                            name="bet"
-                            min="1"
-                            max="{{ balance }}"
-                            required
-                        >
-
-                        <br>
-
-                        <button type="submit">
-                            Deal
-                        </button>
-
-                    </form>
+            {% if message %}
+                <div class="message">
+                    {{ message }}
                 </div>
+            {% endif %}
+
+        {% else %}
+
+            <div class="section">
+                <h2>Dealer</h2>
+
+                <div class="cards">
+                    {% for card in dealer_cards %}
+                        <div class="card">
+                            {{ card }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {% if dealer_total is not none %}
+                    <p>Total: {{ dealer_total }}</p>
+                {% endif %}
+            </div>
+
+            <div class="section">
+                <h2>You</h2>
+
+                <div class="cards">
+                    {% for card in player_cards %}
+                        <div class="card">
+                            {{ card }}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <p>Total: {{ player_total }}</p>
+            </div>
+
+            <p>Bet: {{ bet }}</p>
+
+            {% if message %}
+                <div class="message">
+                    {{ message }}
+                </div>
+            {% endif %}
+
+            {% if active %}
+
+                <form method="POST" action="/gamble/blackjack/hit">
+                    <button type="submit">
+                        Hit
+                    </button>
+                </form>
+
+                <form method="POST" action="/gamble/blackjack/stand">
+                    <button type="submit">
+                        Stand
+                    </button>
+                </form>
 
             {% else %}
 
-                <div class="section">
-                    <h2>Dealer</h2>
-
-                    <div class="cards">
-                        {% for card in dealer_cards %}
-                            <div class="card">
-                                {{ card }}
-                            </div>
-                        {% endfor %}
-                    </div>
-
-                    {% if dealer_total %}
-                        <p>Total: {{ dealer_total }}</p>
-                    {% endif %}
-                </div>
-
-                <div class="section">
-                    <h2>You</h2>
-
-                    <div class="cards">
-                        {% for card in player_cards %}
-                            <div class="card">
-                                {{ card }}
-                            </div>
-                        {% endfor %}
-                    </div>
-
-                    <p>Total: {{ player_total }}</p>
-                </div>
-
-                <p>Bet: {{ bet }}</p>
-
-                {% if message %}
-                    <div class="message">
-                        {{ message }}
-                    </div>
-                {% endif %}
-
-                {% if active %}
-                    <form method="POST" action="/gamble/blackjack/hit">
-                        <button type="submit">
-                            Hit
-                        </button>
-                    </form>
-
-                    <form method="POST" action="/gamble/blackjack/stand">
-                        <button type="submit">
-                            Stand
-                        </button>
-                    </form>
-                {% else %}
-                    <a href="/gamble/blackjack">
-                        <button>
-                            Play Again
-                        </button>
-                    </a>
-                {% endif %}
+                <a href="/gamble/blackjack">
+                    <button type="button">
+                        Play Again
+                    </button>
+                </a>
 
             {% endif %}
 
-        </div>
+        {% endif %}
 
     </div>
+
+</div>
 
 </body>
 </html>
@@ -729,9 +631,11 @@ def unlock_gamble():
         )
 
     session["gamble_unlocked"] = True
-    session["gamble_balance"] = 1000
 
-    return redirect(url_for("gamble"))
+    if "gamble_balance" not in session:
+        session["gamble_balance"] = 1000
+
+    return redirect(url_for("gamble.gamble"))
 
 
 @gamble_bp.route("/gamble/logout", methods=["POST"])
@@ -743,7 +647,7 @@ def gamble_logout():
 @gamble_bp.route("/gamble/blackjack")
 def blackjack():
     if not check_gamble_access():
-        return redirect(url_for("gamble"))
+        return redirect(url_for("gamble.gamble"))
 
     if "gamble_balance" not in session:
         session["gamble_balance"] = 1000
@@ -755,7 +659,7 @@ def blackjack():
         dealer_cards=[],
         player_cards=[],
         player_total=0,
-        dealer_total=0,
+        dealer_total=None,
         bet=0,
         message=None,
         active=False
@@ -765,7 +669,7 @@ def blackjack():
 @gamble_bp.route("/gamble/blackjack/start", methods=["POST"])
 def blackjack_start():
     if not check_gamble_access():
-        return redirect(url_for("gamble"))
+        return redirect(url_for("gamble.gamble"))
 
     try:
         bet = int(request.form.get("bet", "0"))
@@ -782,7 +686,7 @@ def blackjack_start():
             dealer_cards=[],
             player_cards=[],
             player_total=0,
-            dealer_total=0,
+            dealer_total=None,
             bet=0,
             message="Invalid bet.",
             active=False
@@ -800,9 +704,9 @@ def blackjack_start():
         deck.pop()
     ]
 
-    player_total = hand_value(player_cards)
+    session["gamble_balance"] = balance - bet
 
-    session["blackjack"] = {
+    game = {
         "deck": deck,
         "player_cards": player_cards,
         "dealer_cards": dealer_cards,
@@ -810,61 +714,10 @@ def blackjack_start():
         "active": True
     }
 
-    if player_total == 21:
-        winnings = bet * 2
-        session["gamble_balance"] = balance + winnings
-
-        session["blackjack"]["active"] = False
-
-        return render_template_string(
-            BLACKJACK_HTML,
-            balance=session["gamble_balance"],
-            game_started=True,
-            dealer_cards=dealer_cards,
-            player_cards=player_cards,
-            player_total=player_total,
-            dealer_total=hand_value(dealer_cards),
-            bet=bet,
-            message="Blackjack! You win!",
-            active=False
-        )
-
-    session["gamble_balance"] = balance - bet
-
-    return render_template_string(
-        BLACKJACK_HTML,
-        balance=session["gamble_balance"],
-        game_started=True,
-        dealer_cards=[dealer_cards[0], "❓"],
-        player_cards=player_cards,
-        player_total=player_total,
-        dealer_total=None,
-        bet=bet,
-        message=None,
-        active=True
-    )
-
-
-@gamble_bp.route("/gamble/blackjack/hit", methods=["POST"])
-def blackjack_hit():
-    if not check_gamble_access():
-        return redirect(url_for("gamble"))
-
-    game = session.get("blackjack")
-
-    if not game or not game.get("active"):
-        return redirect(url_for("blackjack"))
-
-    deck = game["deck"]
-    player_cards = game["player_cards"]
-    dealer_cards = game["dealer_cards"]
-    bet = game["bet"]
-
-    player_cards.append(deck.pop())
-
     player_total = hand_value(player_cards)
 
-    if player_total > 21:
+    if player_total == 21:
+        session["gamble_balance"] += bet * 2
         game["active"] = False
         session["blackjack"] = game
 
@@ -877,7 +730,7 @@ def blackjack_hit():
             player_total=player_total,
             dealer_total=hand_value(dealer_cards),
             bet=bet,
-            message="Bust! You lose.",
+            message="Blackjack! You win!",
             active=False
         )
 
@@ -897,26 +750,69 @@ def blackjack_hit():
     )
 
 
-@gamble_bp.route("/gamble/blackjack/stand", methods=["POST"])
-def blackjack_stand():
+@gamble_bp.route("/gamble/blackjack/hit", methods=["POST"])
+def blackjack_hit():
     if not check_gamble_access():
-        return redirect(url_for("gamble"))
+        return redirect(url_for("gamble.gamble"))
 
     game = session.get("blackjack")
 
     if not game or not game.get("active"):
-        return redirect(url_for("blackjack"))
+        return redirect(url_for("gamble.blackjack"))
 
-    deck = game["deck"]
-    player_cards = game["player_cards"]
-    dealer_cards = game["dealer_cards"]
+    game["player_cards"].append(game["deck"].pop())
+
+    player_total = hand_value(game["player_cards"])
+
+    if player_total > 21:
+        game["active"] = False
+        session["blackjack"] = game
+
+        return render_template_string(
+            BLACKJACK_HTML,
+            balance=session["gamble_balance"],
+            game_started=True,
+            dealer_cards=game["dealer_cards"],
+            player_cards=game["player_cards"],
+            player_total=player_total,
+            dealer_total=hand_value(game["dealer_cards"]),
+            bet=game["bet"],
+            message="Bust! You lose.",
+            active=False
+        )
+
+    session["blackjack"] = game
+
+    return render_template_string(
+        BLACKJACK_HTML,
+        balance=session["gamble_balance"],
+        game_started=True,
+        dealer_cards=[game["dealer_cards"][0], "❓"],
+        player_cards=game["player_cards"],
+        player_total=player_total,
+        dealer_total=None,
+        bet=game["bet"],
+        message=None,
+        active=True
+    )
+
+
+@gamble_bp.route("/gamble/blackjack/stand", methods=["POST"])
+def blackjack_stand():
+    if not check_gamble_access():
+        return redirect(url_for("gamble.gamble"))
+
+    game = session.get("blackjack")
+
+    if not game or not game.get("active"):
+        return redirect(url_for("gamble.blackjack"))
+
+    while hand_value(game["dealer_cards"]) < 17:
+        game["dealer_cards"].append(game["deck"].pop())
+
+    player_total = hand_value(game["player_cards"])
+    dealer_total = hand_value(game["dealer_cards"])
     bet = game["bet"]
-
-    while hand_value(dealer_cards) < 17:
-        dealer_cards.append(deck.pop())
-
-    player_total = hand_value(player_cards)
-    dealer_total = hand_value(dealer_cards)
 
     if dealer_total > 21:
         message = "Dealer busts! You win!"
@@ -937,8 +833,8 @@ def blackjack_stand():
         BLACKJACK_HTML,
         balance=session["gamble_balance"],
         game_started=True,
-        dealer_cards=dealer_cards,
-        player_cards=player_cards,
+        dealer_cards=game["dealer_cards"],
+        player_cards=game["player_cards"],
         player_total=player_total,
         dealer_total=dealer_total,
         bet=bet,
