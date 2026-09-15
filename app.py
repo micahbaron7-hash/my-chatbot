@@ -832,6 +832,12 @@ AI_HTML = """
                     {% endif %}
 
                 </div>
+                
+                <a href="/gamble" style="text-decoration:none;">
+                    <button type="button">
+                        Gamble
+                    </button>
+                 </a>
 
                 <form method="POST" action="/logout">
 
